@@ -1,4 +1,6 @@
-# Verification evidence — 2026-11-05
+# Initial implementation verification — baseline ab7fa39
+
+This historical record describes the original implementation. For the current audited candidate, corrected contracts, fresh image builds and restart evidence, see [the technical audit](audit.md).
 
 All model responses used in automated tests are explicitly fixtures. No external model endpoint was called.
 

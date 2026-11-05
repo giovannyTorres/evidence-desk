@@ -9,9 +9,7 @@ export interface Config {
 export interface User {
   id: string;
   email: string;
-  organization?: string;
-  org_name?: string;
-  org_id?: string;
+  org: string;
   name?: string;
 }
 export interface Document {

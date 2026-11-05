@@ -136,8 +136,8 @@ export default function Home() {
   const [config, setConfig] = useState<Config | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [email, setEmail] = useState("analyst@aurora.example");
-  const [password, setPassword] = useState("demo-evidence");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -178,13 +178,15 @@ export default function Home() {
         const current = await api<Config>("/config");
         if (mounted) {
           setConfig(current);
-          if (current.mode === "LIVE") {
-            setEmail("");
-            setPassword("");
-          }
+          setEmail(current.mode === "DEMO" ? "analyst@aurora.example" : "");
+          setPassword(current.mode === "DEMO" ? "demo-evidence" : "");
         }
       } catch (e) {
-        if (mounted) setError(errorText(e));
+        if (mounted) {
+          setError(errorText(e));
+          setInitializing(false);
+        }
+        return;
       }
       try {
         const current = await api<User>("/me");
@@ -220,6 +222,10 @@ export default function Home() {
 
   async function login(event: FormEvent) {
     event.preventDefault();
+    if (!config) {
+      setError("Reconnect before signing in so the active mode can be verified.");
+      return;
+    }
     setLoginBusy(true);
     setError("");
     try {
@@ -325,7 +331,9 @@ export default function Home() {
       }
       if (!response.body)
         throw new Error("Streaming is unavailable. Please retry.");
+      let terminalReceived = false;
       await consumeEvents(response.body, (event, payload) => {
+        if (event === "done" || event === "cancelled") terminalReceived = true;
         const data = payload as {
           text?: string;
           citations?: Citation[];
@@ -356,6 +364,7 @@ export default function Home() {
               "The provider could not complete this answer. Try again.",
           );
       });
+      if (!terminalReceived) throw new Error("The answer stream ended early. Reopen the conversation or retry.");
       const persisted = await api<Conversation>(`/conversations/${id}`);
       setMessages(persisted.messages ?? []);
       setConversations(await api<Conversation[]>("/conversations"));
@@ -449,13 +458,7 @@ export default function Home() {
       setLibraryBusy(false);
     }
   }
-  const organization =
-    user?.org_name ??
-    user?.organization ??
-    user?.name ??
-    (user?.email.includes("meridian")
-      ? "Meridian Studio"
-      : "Aurora Cooperative");
+  const organization = user?.org === "aurora" ? "Aurora Cooperative" : user?.org === "meridian" ? "Meridian Studio" : (user?.org ?? "Organization");
   const filtered = documents.filter((document) =>
     `${document.title} ${document.filename}`
       .toLowerCase()
@@ -510,7 +513,7 @@ export default function Home() {
             {config?.mode ?? "MODE UNKNOWN"}
             {config?.mode === "DEMO"
               ? " · Synthetic workspace"
-              : " · API workspace"}
+              : config?.mode === "LIVE" ? " · API workspace" : " · Reconnect to verify mode"}
           </div>
           <div className="login-form-wrap">
             <div className="eyebrow">YOUR RESEARCH WORKSPACE</div>
@@ -544,12 +547,13 @@ export default function Home() {
               )}
               <button
                 className="button button-primary login-submit"
-                disabled={loginBusy}
+                disabled={loginBusy || !config}
               >
                 {loginBusy ? "Signing in…" : "Open workspace"}
                 <Icon name="arrow" />
               </button>
             </form>
+            {!config && <button className="text-link" onClick={() => window.location.reload()}>Retry connection</button>}
             {config?.mode === "DEMO" && (
               <div className="demo-access">
                 <Icon name="shield" size={19} />
@@ -857,7 +861,7 @@ export default function Home() {
                           )}
                         </div>
                         <span
-                          className={`status-chip ${["ready", "indexed", "completed"].includes(document.status) ? "ready" : document.status === "failed" ? "failed" : "pending"}`}
+                          className={`status-chip ${["ready", "indexed", "completed"].includes(document.status) ? "ready" : ["failed", "error"].includes(document.status) ? "failed" : "pending"}`}
                         >
                           {["ready", "indexed", "completed"].includes(
                             document.status,

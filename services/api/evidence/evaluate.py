@@ -24,16 +24,19 @@ async def evaluate(output: Path, split: str):
     cases = [case for case in json.loads(raw) if case['split'] == split]
     gateway = ModelGateway(config)
     rows = []
-    for case in cases:
-        try:
-            sources = await retrieve(case['question'], case['org'], gateway)
-            answer = await gateway.generate(case['question'], json.dumps(sources))
-            _, citations = validate_answer(answer, sources)
-            passed = (not citations) if case['expected_abstention'] else any(
-                c['title'] == case['expected_document'] and c['location'] == case['expected_location'] for c in citations)
-            rows.append({'id': case['id'], 'evidence_check': passed, 'answer': answer.model_dump(), 'citations': citations})
-        except Exception:
-            rows.append({'id': case['id'], 'evidence_check': None, 'error': 'Provider, index or structured-response failure'})
+    try:
+        for case in cases:
+            try:
+                sources = await retrieve(case['question'], case['org'], gateway)
+                answer = await gateway.generate(case['question'], json.dumps(sources))
+                _, citations = validate_answer(answer, sources)
+                passed = (not citations) if case['expected_abstention'] else any(
+                    c['title'] == case['expected_document'] and c['location'] == case['expected_location'] for c in citations)
+                rows.append({'id': case['id'], 'evidence_check': passed, 'answer': answer.model_dump(), 'citations': citations})
+            except Exception:
+                rows.append({'id': case['id'], 'evidence_check': None, 'error': 'Provider, index or structured-response failure'})
+    finally:
+        await gateway.aclose()
     complete = [row for row in rows if row['evidence_check'] is not None]
     result = {'mode': 'LIVE', 'executed_at': datetime.now(timezone.utc).isoformat(),
               'provider': config.provider, 'model': config.model, 'embedding_model': config.embedding_model,

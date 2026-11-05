@@ -1,21 +1,9 @@
 import asyncio
 import uuid
-import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import select
 from evidence.db import Chunk, Document, Job, Session, Version
 from evidence.domain import process_one
-from evidence.main import app, login_attempts
-
-
-@pytest.fixture
-def client():
-    login_attempts.clear()
-    with TestClient(app) as c:
-        while asyncio.run(process_one()):
-            pass
-        assert c.post('/api/auth/login', json={'email': 'analyst@aurora.example', 'password': 'demo-evidence'}).status_code == 200
-        yield c
+from evidence.main import app
 
 
 def test_auth_and_origin(client):

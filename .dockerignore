@@ -8,3 +8,11 @@
 **/test-results
 .pytest_cache
 .mypy_cache
+.run
+**/.run
+**/*.log
+**/playwright-report
+**/.ruff_cache
+**/.pytest_cache
+**/.mypy_cache
+**/*.tsbuildinfo

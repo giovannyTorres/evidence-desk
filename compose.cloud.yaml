@@ -3,9 +3,23 @@ services:
   api:
     build:
       secrets: [proxy_ca]
+    environment:
+      SSL_CERT_FILE: /run/ca-bundle.pem
+    volumes:
+      - type: bind
+        source: /etc/ssl/certs/ca-certificates.crt
+        target: /run/ca-bundle.pem
+        read_only: true
   worker:
     build:
       secrets: [proxy_ca]
+    environment:
+      SSL_CERT_FILE: /run/ca-bundle.pem
+    volumes:
+      - type: bind
+        source: /etc/ssl/certs/ca-certificates.crt
+        target: /run/ca-bundle.pem
+        read_only: true
   web:
     build:
       secrets: [proxy_ca]

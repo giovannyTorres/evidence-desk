@@ -12,11 +12,13 @@ Requirements: Docker Engine with Compose v2. No GPU or model downloads.
 make demo
 ```
 
-Open **http://localhost:3101**. Sign in with `analyst@aurora.example` / `demo-evidence`. The second organization is `analyst@meridian.example` with the same demonstration password. These intentionally public accounts are DEMO only and cannot authenticate in LIVE. The first launch builds images; wait for healthchecks and document processing.
+Open **http://localhost:3101**. Sign in with `analyst@aurora.example` / `demo-evidence`. The second organization is `analyst@meridian.example` with the same demonstration password. These intentionally public accounts are DEMO only and cannot authenticate in LIVE. The first launch builds images; wait for healthchecks and document processing. PDF extraction occurs only in the worker with Linux process resource limits; malformed or scanned PDFs become retryable processing errors.
 
-DEMO runs PostgreSQL, sessions, permissions, file extraction, versioning, a durable worker, chat history and SSE. The model decision is replaced by six named, hash-bound fixtures. Free-form interpretation requires LIVE. Text search is explicitly lexical; no embeddings or model timing/token/quality metrics are fabricated.
+DEMO runs PostgreSQL, sessions, permissions, file extraction, versioning, a durable worker, chat history and SSE. The model decision is replaced by six named, hash-bound fixtures. Free-form interpretation requires LIVE. The search API is explicitly lexical (the library UI filters titles/filenames); no embeddings or model timing/token/quality metrics are fabricated.
 
-For this managed workspace's HTTPS proxy, use `docker compose -f compose.yaml -f compose.cloud.yaml up --build -d --wait`. The override mounts the CA only during builds. A normal development machine uses `make demo`.
+See [the technical audit and reproducible evidence](docs/audit.md) for corrected failure cases, contract boundaries and clean-install validation.
+
+For this managed workspace's HTTPS proxy, use `docker compose -f compose.yaml -f compose.cloud.yaml up --build -d --wait`. The optional override uses the host CA bundle for builds and mounts it read-only for API/worker HTTPS at runtime. A normal development machine uses `make demo`.
 
 ## What to review
 
@@ -40,7 +42,7 @@ PYTHONPATH=services/api uv run python services/worker/main.py
 cd apps/web && npm run dev
 ```
 
-`make check types test build` runs Python/frontend lint, type checking, tests and production frontend compilation. With the API and worker running: `cd apps/web && npm run test:e2e`. To use system Chromium set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`; otherwise install with `npx playwright install chromium`. CI is credential-free. Tests create synthetic records in the configured database; use a dedicated test database outside this demo.
+`make check types test build` runs Python/frontend lint, type checking, tests and production frontend compilation. With the API and worker running: `cd apps/web && npm run test:e2e`. To use system Chromium set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`; otherwise install with `npx playwright install chromium`. CI is credential-free. Tests use only `TEST_DATABASE_URL` (default database `evidence_test`), require a name ending `_test`, and ignore the application `DATABASE_URL`. Create that isolated database before tests: `docker exec evidence-dev-db createdb -U evidence evidence_test`. Never place personal data in a test database.
 
 ## Implementation status
 

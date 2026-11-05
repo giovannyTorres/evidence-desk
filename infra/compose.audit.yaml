@@ -1,0 +1,12 @@
+# Isolated audit profile; invoke with -p audit-evidence. Existing volumes are never reused.
+services:
+  db:
+    ports: ['127.0.0.1:5641:5432']
+  api:
+    environment:
+      PUBLIC_ORIGIN: http://localhost:3201
+  worker:
+    environment:
+      PUBLIC_ORIGIN: http://localhost:3201
+  web:
+    ports: !override ['127.0.0.1:3201:3101']

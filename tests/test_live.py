@@ -10,8 +10,8 @@ from evidence.providers import ModelGateway
 async def test_live_smoke():
     config=Settings(mode='LIVE')
     assert not config.missing(), config.missing()
-    gateway=ModelGateway(config)
-    result=await gateway.generate('What is the allowance?', '[{"chunk_id":"sample","excerpt":"The allowance is 650 MXN."}]')
-    assert result.chunk_ids == ['sample'] and not result.abstain
-    vectors=await gateway.embed(['synthetic smoke test'])
-    assert len(vectors[0])==config.embedding_dimensions
+    async with ModelGateway(config) as gateway:
+        result=await gateway.generate('What is the allowance?', '[{"chunk_id":"sample","excerpt":"The allowance is 650 MXN."}]')
+        assert result.chunk_ids == ['sample'] and not result.abstain
+        vectors=await gateway.embed(['synthetic smoke test'])
+        assert len(vectors[0])==config.embedding_dimensions

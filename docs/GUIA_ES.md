@@ -9,3 +9,10 @@ Las dos organizaciones son ficticias y sus manuales originales son sintéticos. 
 Pruebas: `make check types test build`; navegador: `cd apps/web && npm run test:e2e` con API/worker activos. Las capturas en `docs/screenshots` provienen del navegador real. Los contratos de los SDK de OpenAI y Gemini se verificaron con transportes simulados; no se enviaron llamadas pagadas. Las métricas de calidad de modelos y el despliegue Azure están pendientes.
 
 Para LIVE siga [live.md](live.md): configure las claves solo en backend, cree un usuario LIVE mediante el comando de provisión, cargue documentos para indexar y ejecute el smoke test opcional. Los usuarios y sesiones DEMO no funcionan en LIVE. No hay cambio silencioso a DEMO ante errores.
+
+
+## Auditoría técnica de la candidata
+
+La evidencia actual está en [audit.md](audit.md): los resultados anteriores se conservan como registro histórico. Las pruebas usan exclusivamente `TEST_DATABASE_URL` con un nombre terminado en `_test`; no reutilizan la base configurada para la aplicación. El PDF se valida superficialmente al subirlo y se extrae en un subproceso del worker con límites Linux de memoria, CPU y tiempo. Un PDF dañado pasa a estado de error persistente y permite reintentar o eliminarlo. Un corte del streaming se informa como error recuperable, nunca como respuesta completa.
+
+Para repetir una instalación aislada use el proyecto Compose `audit-evidence` y `infra/compose.audit.yaml` descritos en el informe. Conserva intactos los volúmenes originales y usa el puerto web 3201. Las verificaciones de contratos OpenAI/Gemini son transportes simulados; no equivalen a llamadas LIVE, calidad del modelo ni un despliegue Azure.

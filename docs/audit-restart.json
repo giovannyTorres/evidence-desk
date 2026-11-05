@@ -1,0 +1,15 @@
+{
+  "executed_at": "2026-11-05T03:33:08.405855+00:00",
+  "project": "audit-evidence",
+  "mode": "DEMO",
+  "external_model_calls": 0,
+  "checks": {
+    "session_survives_api_restart": true,
+    "queued_file_survives_database_restart": true,
+    "worker_resumes_queued_document": true,
+    "download_bytes_unchanged": true,
+    "conversation_and_citations_survive_api_worker_restart": true,
+    "deleted_document_source_returns_404": true
+  },
+  "scope": "Real container restarts and queued-job recovery. Mid-attempt lease fencing is covered separately by concurrent PostgreSQL regression tests."
+}

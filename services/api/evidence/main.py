@@ -7,7 +7,7 @@ import logging
 import time
 import uuid
 from collections import defaultdict
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -18,13 +18,17 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from .auth import create_session, current_user
 from .config import settings
 from .db import Chunk, Conversation, Document, Job, LoginSession, Message, Session, Version, now
-from .domain import citation, demo_answer, extract, retrieve, scenarios, validate_answer
+from .domain import citation, demo_answer, validate_upload, retrieve, scenarios, validate_answer
 from .providers import ModelGateway
 from .seed import seed
-from .telemetry import configure_tracing
+from .telemetry import configure_tracing, redact_request_target
+from .limits import BodyLimitMiddleware
 
 log = logging.getLogger('evidence')
 logging.basicConfig(level=logging.INFO, format='%(message)s')
+# Uvicorn's default access record includes query strings. The structured middleware
+# already records method/path/status/correlation without user search text.
+logging.getLogger('uvicorn.access').disabled = True
 tracer = trace.get_tracer('evidence-desk')
 login_attempts: dict[str, list[float]] = defaultdict(list)
 
@@ -33,14 +37,18 @@ login_attempts: dict[str, list[float]] = defaultdict(list)
 async def lifespan(app):
     seed()
     app.state.gateway = ModelGateway(settings())
-    yield
+    try:
+        yield
+    finally:
+        await app.state.gateway.aclose()
 
 
 app = FastAPI(title='Evidence Desk', version='1.0.0', lifespan=lifespan,
               description='Synthetic document evidence workspace. DEMO responses are fixtures, not model metrics.')
+app.add_middleware(BodyLimitMiddleware)
 if settings().otel_enabled:
     configure_tracing()
-    FastAPIInstrumentor.instrument_app(app)
+    FastAPIInstrumentor.instrument_app(app, server_request_hook=redact_request_target)
 
 
 @app.middleware('http')
@@ -49,12 +57,13 @@ async def correlation(request: Request, call_next):
     request.state.correlation_id = cid
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         origin = request.headers.get('origin')
-        if origin and origin.rstrip('/') != settings().public_origin.rstrip('/'):
+        if (origin and origin.rstrip('/') != settings().public_origin.rstrip('/')) or request.headers.get('sec-fetch-site') == 'cross-site':
             return Response('Cross-origin writes are not accepted', status_code=403)
     start = time.monotonic()
     response = await call_next(request)
     response.headers['X-Correlation-ID'] = cid
     response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Cache-Control'] = 'no-store'
     log.info(json.dumps({'event': 'request', 'correlation_id': cid, 'method': request.method,
                         'path': request.url.path, 'status': response.status_code,
                         'duration_ms': round((time.monotonic()-start)*1000, 2)}))
@@ -151,7 +160,7 @@ async def upload(file: UploadFile = File(...), title: str | None = Form(None),
         raise HTTPException(413, 'File exceeds 5 MiB limit')
     name = (file.filename or 'document.txt').replace('\\', '/').split('/')[-1][:200]
     try:
-        extract(name, data)
+        validate_upload(name, data)
     except Exception as exc:
         raise HTTPException(422, str(exc)[:200] if isinstance(exc, ValueError) else 'Could not read this document') from None
     digest = hashlib.sha256(data).hexdigest()
@@ -159,7 +168,8 @@ async def upload(file: UploadFile = File(...), title: str | None = Form(None),
         if document_id:
             doc = owned_document(db, document_id, user)
             db.refresh(doc, with_for_update=True)
-            old = db.scalar(select(Version).where(Version.document_id == doc.id, Version.content_hash == digest))
+            old = db.scalar(select(Version).where(Version.document_id == doc.id,
+                Version.number == doc.current_version, Version.content_hash == digest))
             if old:
                 return document_data(doc, old)
             doc.current_version += 1
@@ -186,7 +196,8 @@ def versions(document_id: str, user=Depends(current_user)):
 def download(document_id: str, version: int | None = None, user=Depends(current_user)):
     with Session() as db:
         doc = owned_document(db, document_id, user)
-        v = db.scalar(select(Version).where(Version.document_id == doc.id, Version.number == (version or doc.current_version)))
+        selected_version = doc.current_version if version is None else version
+        v = db.scalar(select(Version).where(Version.document_id == doc.id, Version.number == selected_version))
         if not v:
             raise HTTPException(404, 'Version not found')
         return Response(base64.b64decode(v.content), media_type='application/octet-stream',
@@ -240,6 +251,7 @@ def search(q: str, user=Depends(current_user)):
     with Session() as db:
         rows = db.execute(select(Chunk, Version, Document).join(Version, Chunk.version_id == Version.id).join(Document, Version.document_id == Document.id).where(
             Document.org == user.org, Document.mode == settings().mode, Version.number == Document.current_version,
+            Version.status == 'ready',
             Chunk.text.ilike(f'%{q[:200]}%')).limit(12)).all()
         return {'method': 'lexical substring search (no embeddings)', 'results': [citation(*row) for row in rows]}
 
@@ -322,7 +334,7 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user=D
         db.refresh(c, with_for_update=True)
         if c.busy and c.lease_until and c.lease_until > now():
             raise HTTPException(409, 'An answer is already running')
-        c.busy, c.cancelled, c.lease_until = True, False, now() + dt.timedelta(minutes=2)
+        c.busy, c.cancelled, c.lease_until = True, False, now() + dt.timedelta(seconds=2 * config.model_timeout + 30)
         db.add(Message(conversation_id=c.id, role='user', content=question))
 
     async def events():
@@ -385,6 +397,10 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user=D
                 db.add(Message(conversation_id=conversation_id, role='system', content='The answer could not be completed. Retry or check LIVE configuration.', metadata_json={'error': True}))
             yield sse('error', {'message': 'The answer could not be completed. Retry or check LIVE configuration.', 'correlation_id': request.state.correlation_id})
         finally:
+            if task and not task.done():
+                task.cancel()
+                with suppress(Exception, asyncio.CancelledError):
+                    await task
             with Session.begin() as db:
                 c = db.get(Conversation, conversation_id)
                 if c:

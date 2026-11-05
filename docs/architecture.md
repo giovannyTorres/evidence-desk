@@ -30,3 +30,10 @@ Selection checked 2026-11-05 against official Next.js install and React version 
 - https://platform.openai.com/docs/guides/embeddings
 - https://ai.google.dev/gemini-api/docs/structured-output
 - https://github.com/pgvector/pgvector
+
+
+## Audit decision: bounded extraction and lease ownership
+
+Upload validates transport bytes and cheap file signatures/UTF-8 only. Parsing belongs exclusively to the worker, in a short-lived restricted Linux subprocess (512 MiB address space, 8 CPU seconds, 10-second parent deadline). This keeps pathological PDF parsing outside FastAPI's event loop and makes errors durable. It is a subprocess boundary within the worker, not another service. Two parser slots cap local concurrency; broader storage/tenant quotas remain an explicit deployment limitation.
+
+A processing attempt number fences result/error commits after a lease is reclaimed. The worker locks the document and job before replacement; historical citation IDs remain stable for the immutable source version. Restoring older file bytes is a new version, while retransmitting the current bytes is idempotent.

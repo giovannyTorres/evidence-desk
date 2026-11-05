@@ -1,10 +1,13 @@
 import base64
 import datetime as dt
-import io
+import asyncio
+import os
+import subprocess
+import sys
+import threading
 import json
 import uuid
 from pathlib import Path
-from pypdf import PdfReader
 from opentelemetry import trace
 from sqlalchemy import delete, func, or_, select
 from .config import settings
@@ -12,41 +15,45 @@ from .db import Chunk, Document, Job, Session, Version, now
 from .providers import Answer, ModelGateway
 
 FIXTURES = Path(__file__).resolve().parents[3] / 'fixtures'
+PARSER_SLOTS = threading.BoundedSemaphore(2)
+
+
+def validate_upload(filename: str, content: bytes) -> None:
+    if len(content) > settings().max_upload_bytes:
+        raise ValueError('File exceeds 5 MiB limit')
+    # Simple format checks retain actionable errors before the sandboxed parser.
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {'.pdf', '.txt', '.md'}:
+        raise ValueError('Only text PDF, UTF-8 TXT and Markdown are supported')
+    if suffix == '.pdf' and not content.startswith(b'%PDF-'):
+        raise ValueError('Invalid PDF signature')
+    if suffix != '.pdf':
+        try:
+            decoded = content.decode('utf-8')
+        except UnicodeDecodeError:
+            raise ValueError('Text documents must use UTF-8') from None
+        if '\x00' in decoded or not decoded.strip():
+            raise ValueError('Document must contain nonempty UTF-8 text')
 
 
 def extract(filename: str, content: bytes) -> list[tuple[str, str]]:
-    suffix = Path(filename).suffix.lower()
-    if suffix == '.pdf':
-        if not content.startswith(b'%PDF-'):
-            raise ValueError('Invalid PDF signature')
-        reader = PdfReader(io.BytesIO(content))
-        if reader.is_encrypted or len(reader.pages) > 100:
-            raise ValueError('PDF must be unencrypted and at most 100 pages')
-        sections = [(f'Page {i+1}', page.extract_text() or '') for i, page in enumerate(reader.pages)]
-    elif suffix in {'.txt', '.md'}:
-        decoded = content.decode('utf-8')
-        if '\x00' in decoded:
-            raise ValueError('Binary content is not accepted')
-        sections = []
-        heading = 'Section 1'
-        lines: list[str] = []
-        for line in decoded.splitlines():
-            if line.startswith('#'):
-                if lines:
-                    sections.append((heading, '\n'.join(lines)))
-                heading, lines = line.lstrip('# ').strip()[:160], []
-            else:
-                lines.append(line)
-        sections.append((heading, '\n'.join(lines)))
-    else:
-        raise ValueError('Only text PDF, UTF-8 TXT and Markdown are supported')
-    result = [(loc, body[start:start+1200]) for loc, body in sections if body.strip()
-              for start in range(0, len(body), 1000)]
-    if not result:
-        raise ValueError('No extractable text found; scanned PDFs need OCR outside this product')
-    if len(result) > 400:
-        raise ValueError('Document exceeds 400 text fragments')
-    return result
+    validate_upload(filename, content)
+    environment = {key: value for key, value in os.environ.items() if key in {'PATH', 'PYTHONPATH', 'SYSTEMROOT'}}
+    environment['PYTHONPATH'] = str(Path(__file__).resolve().parents[1])
+    if not PARSER_SLOTS.acquire(timeout=10):
+        raise ValueError('Document parser is busy; retry the processing job')
+    try:
+        result = subprocess.run([sys.executable, '-m', 'evidence.extraction'],
+            input=json.dumps({'filename': filename, 'data': base64.b64encode(content).decode()}).encode(),
+            capture_output=True, timeout=10, env=environment, check=False)
+        decoded = json.loads(result.stdout)
+        if result.returncode or not isinstance(decoded, list):
+            raise ValueError('Document could not be safely extracted; use an unencrypted text PDF, UTF-8 TXT or Markdown.')
+        return [(location, body) for location, body in decoded]
+    except (subprocess.TimeoutExpired, json.JSONDecodeError):
+        raise ValueError('Document extraction exceeded resource limits or returned no text') from None
+    finally:
+        PARSER_SLOTS.release()
 
 
 @trace.get_tracer("evidence-desk").start_as_current_span("document.process")
@@ -65,14 +72,25 @@ async def process_one() -> bool:
         assert version is not None
         version.status = 'processing'
         job_id, version_id, filename, data = job.id, version.id, version.filename, version.content
+        attempt, document_id = job.attempts, version.document_id
     try:
-        sections = extract(filename, base64.b64decode(data))
+        sections = await asyncio.to_thread(extract, filename, base64.b64decode(data))
         vectors = None
         if config.mode == 'LIVE':
             if config.missing():
                 raise ValueError('LIVE configuration incomplete')
-            vectors = await ModelGateway(config).embed([body for _, body in sections])
+            gateway = ModelGateway(config)
+            try:
+                vectors = await gateway.embed([body for _, body in sections])
+            finally:
+                await gateway.aclose()
         with Session.begin() as db:
+            document = db.scalar(select(Document).where(Document.id == document_id).with_for_update())
+            job = db.scalar(select(Job).where(Job.id == job_id).with_for_update())
+            # A lease can be reclaimed while an earlier slow process is still alive.
+            # Its attempt number is a fencing token: stale results must not commit.
+            if not document or not job or job.attempts != attempt or job.state != 'processing':
+                return True
             version = db.get(Version, version_id)
             if not version:  # deleted during processing
                 return True
@@ -83,15 +101,14 @@ async def process_one() -> bool:
             version.status, version.error = 'ready', None
             if vectors:
                 version.provider, version.model, version.dimensions = 'openai', config.embedding_model, config.embedding_dimensions
-            job = db.get(Job, job_id)
-            assert job is not None
             job.state, job.lease_until = 'done', None
     except Exception as exc:
         # Content/config messages are safe. External errors are deliberately sanitized.
         error = str(exc)[:300] if isinstance(exc, (ValueError, UnicodeDecodeError)) else 'Processing failed; retry after checking provider availability'
         with Session.begin() as db:
-            version, job = db.get(Version, version_id), db.get(Job, job_id)
-            if version and job:
+            job = db.scalar(select(Job).where(Job.id == job_id).with_for_update())
+            version = db.get(Version, version_id)
+            if version and job and job.attempts == attempt and job.state == 'processing':
                 version.status, version.error, job.state = 'error', error, 'failed'
     return True
 
@@ -124,7 +141,7 @@ async def retrieve(question: str, org: str, gateway: ModelGateway) -> list[dict]
         base = source_rows(db, org, 'LIVE')
         incompatible = db.execute(base.where(or_(Version.provider != 'openai',
             Version.model != config.embedding_model, Version.dimensions != len(vector),
-            Version.provider.is_(None)))).first()
+            Version.provider.is_(None), Version.model.is_(None), Version.dimensions.is_(None)))).first()
         if incompatible:
             raise ValueError('An index is incompatible with the configured embeddings; reindex before querying')
         # Both candidates are filtered by tenant/mode/current-version before rank fusion.
