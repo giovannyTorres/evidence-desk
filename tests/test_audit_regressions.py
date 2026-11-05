@@ -11,6 +11,19 @@ from evidence.db import Chunk, Document, Job, Session, Version, now
 from evidence.domain import process_one
 
 
+@pytest.mark.parametrize('password', ['AUDIT_INVALID_PASSWORD_' * 12, {'AUDIT_INVALID_PASSWORD_': 'invalid type'}])
+def test_invalid_credentials_are_not_reflected_in_validation_errors(client, caplog, password):
+    caplog.set_level('INFO', logger='evidence')
+    response = client.post('/api/auth/login', json={'email': 'analyst@aurora.example', 'password': password})
+    assert response.status_code == 422
+    assert 'AUDIT_INVALID_PASSWORD_' not in response.text
+    assert 'AUDIT_INVALID_PASSWORD_' not in caplog.text
+    assert any(record.name == 'evidence' and '"status": 422' in record.message for record in caplog.records)
+    details = response.json()['detail']
+    assert details and details[0]['loc'] == ['body', 'password']
+    assert all(set(error) == {'loc', 'type', 'msg'} for error in details)
+
+
 def test_direct_backend_bounds_declared_and_streamed_request_body(client):
     assert client.post('/api/auth/login', content=b'{}', headers={'content-length': str(7 * 1024 * 1024)}).status_code == 413
     response = client.post('/api/auth/login', content=iter([b' ' * 1024 * 1024 for _ in range(7)]), headers={'content-type': 'application/json'})

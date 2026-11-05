@@ -9,7 +9,8 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, text
@@ -49,6 +50,15 @@ app.add_middleware(BodyLimitMiddleware)
 if settings().otel_enabled:
     configure_tracing()
     FastAPIInstrumentor.instrument_app(app, server_request_hook=redact_request_target)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, exc: RequestValidationError):
+    # Pydantic includes the rejected input/context by default, including passwords.
+    # Fixed messages also avoid exposing values through custom validator messages.
+    details = [{'loc': error['loc'], 'type': error['type'], 'msg': 'Invalid request value'}
+               for error in exc.errors()]
+    return JSONResponse(status_code=422, content={'detail': details})
 
 
 @app.middleware('http')

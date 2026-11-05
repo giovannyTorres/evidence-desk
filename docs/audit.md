@@ -22,6 +22,7 @@ This is a portfolio review candidate, not a production certification. No externa
 | E10 / Low | Small muted text `#737c76` on `#faf9f6` had measured contrast about 4.09:1. | Darkened muted text to `#626c66`; desktop/mobile screenshots reviewed. This is a targeted readability correction, not comprehensive WCAG certification. |
 | E11 / Medium | A configuration outage left DEMO credentials prefilled while mode was unknown; sign-in remained available. | Start blank, prefill only after confirmed DEMO, block sign-in until mode is known, and offer a connection retry. Browser contract tests verify LIVE stays blank and failed configuration recovers without pretending to be DEMO. |
 | E12 / Medium | Managed-workspace CA trust existed only at build time, so SDK HTTPS would fail certificate validation inside running API/worker containers behind that proxy. | The optional cloud override mounts the combined CA bundle read-only at runtime and sets `SSL_CERT_FILE`; standard Compose stays portable. A public HTTPS GET (not a model request) verifies runtime TLS. Docker build context also excludes logs/caches/reports. |
+| E13 / High | A direct overlong or wrong-type password submitted to `/api/auth/login` returned `422` with the credential repeated in FastAPI's default `detail[].input`; the original response was reproduced through the actual ASGI app. | A `RequestValidationError` handler returns only field location, error type and a fixed safe message, excluding raw input/context or custom validator text. `test_invalid_credentials_are_not_reflected_in_validation_errors` checks length/type failures and absence of a synthetic credential canary from responses and captured logs. |
 
 ## Manual grounding review
 
@@ -70,7 +71,7 @@ Omit `compose.cloud.yaml` and the restart script's `--cloud` flag on hosts that 
 
 ## Execution record and limits
 
-- Backend: **72 tests passed** in the final integrated suite, 1 LIVE marker excluded, against real PostgreSQL/pgvector on the isolated audit database. Includes **43 provider/configuration contract tests**; neither count is a model evaluation score.
+- Backend: **74 tests passed** in the final integrated suite after E13, 1 LIVE marker excluded, against real PostgreSQL/pgvector on the isolated audit database. Includes **43 provider/configuration contract tests** and both invalid-credential regressions; neither count is a model evaluation score. Python lint and mypy also pass after the validation-handler correction.
 - Python lint and mypy (15 modules), frontend lint/TypeScript, 6 frontend unit tests and production Next build passed.
 - Initial browser audit found a test locator ambiguous with Next's accessibility announcer; scoped it to the visible application error without weakening the intended error/recovery assertion.
 - **Clean Docker reconstruction passed**, with `build --pull --no-cache`, an explicit pull of `pgvector/pgvector:0.8.0-pg17`, and a new `audit-evidence_postgres` volume. API, worker, web and database were all healthy. This resolved the previous registry uncertainty; no old application image, installed host package or file outside the build context supplied application code. The sole environment-specific dependency is the documented optional CA bundle. The post-build `up --no-build --wait` booted the images just rebuilt; it is not the build evidence.
@@ -80,15 +81,31 @@ Omit `compose.cloud.yaml` and the restart script's `--cloud` flag on hosts that 
 - Public HTTPS from the API container to `https://pypi.org/simple/openai/` returned **200** using runtime CA trust. This verifies TLS/connectivity only; no model endpoint was called.
 - The running container's OpenAPI document was fetched and checked in. Azure Bicep compiled locally with the available Bicep CLI; no Azure resource was created and Azure runtime validation remains pending.
 
-Rebuilt application image identities (local, not published):
+After the final E13 correction, `build --pull --no-cache api worker` successfully reconstructed both affected backend images again. The database/API/worker started healthy on the preserved isolated audit volume. Direct HTTP **inside the rebuilt API container** verified both invalid password cases return `422` without the canary; actual structured logs include those `422` events without the credential. Valid login, a new upload processed by the real worker, source retrieval and deletion/revocation also passed. An independent second request reproduced the sanitized `422`. The frontend did not change after its full build and seven browser checks; those checks were not repeated or relabeled as new runs.
+
+To reproduce the credential check after booting `db api worker`, without making a model call:
+
+```sh
+docker compose -p audit-evidence -f compose.yaml -f compose.cloud.yaml -f infra/compose.audit.yaml exec -T api python - <<'PY'
+import httpx
+marker = 'AUDIT_INVALID_PASSWORD_'
+response = httpx.post('http://localhost:8000/api/auth/login', json={
+    'email': 'analyst@aurora.example', 'password': marker * 12})
+assert response.status_code == 422 and marker not in response.text
+assert all(set(error) == {'loc', 'type', 'msg'} for error in response.json()['detail'])
+print('422: credential omitted; field and error type retained')
+PY
+```
+
+Final validated application image identities (local, not published):
 
 | Image | SHA-256 |
 |---|---|
-| `audit-evidence-api` | `a73b275382654c6672ab570ee9ad610aadc3efcd6cc58a92a845a7919cbe7da3` |
-| `audit-evidence-worker` | `3fa822f08d50e4f6d0ca42192335eeb0ca78ea5eee224585820e4db2c6dcd421` |
+| `audit-evidence-api` | `5d65d10b165b3eb2b6814d8e747305f8d64ca83e2161096da5ff678b699f4cd9` |
+| `audit-evidence-worker` | `3486c6cb66f1fa4661ea45250a6b6e69409c27a6d24b23bf640fb65e549c92c3` |
 | `audit-evidence-web` | `8cec90bfb707ad603898a62e75536e586aba708cbaafe79a0f7fed151e93f09b` |
 
-The audit stack was stopped without removing its named volume after validation. Original application volumes were also preserved. Host checks and browser tests are additional evidence; they do not substitute for the completed fresh Docker build.
+The audit stack was stopped without removing its named volume after each validation. Original application volumes were also preserved. The earlier audit web image and intermediate build cache were removed to accommodate sequential builds of all three repositories on the workspace's limited disk; the final backend images were retained. Image cleanup does not alter the recorded build or browser results. Host checks and browser tests are additional evidence; they do not substitute for the completed fresh Docker build.
 
 LIVE remains unverified against external services. Contract fixtures cannot establish actual model availability, acceptance, grounding quality, safety, billing or quotas. Model profiles and source URLs are documented in [LIVE](live.md). A provider/model outside a reviewed profile fails configuration validation until its contract is explicitly reviewed.
 
