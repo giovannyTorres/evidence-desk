@@ -1,0 +1,71 @@
+name: evidence-desk
+services:
+  db:
+    image: pgvector/pgvector:0.8.0-pg17
+    environment:
+      POSTGRES_USER: evidence
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-evidence}
+      POSTGRES_DB: evidence
+    volumes: [postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U evidence -d evidence']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment: &api-env
+      DATABASE_URL: postgresql+psycopg://evidence:${DB_PASSWORD:-evidence}@db:5432/evidence
+      MODE: ${MODE:-DEMO}
+      PROVIDER: ${PROVIDER:-openai}
+      MODEL: ${MODEL:-gpt-4.1-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3101}
+      MODEL_TIMEOUT: ${MODEL_TIMEOUT:-30}
+      MODEL_CONCURRENCY: ${MODEL_CONCURRENCY:-4}
+      MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-1200}
+      TEMPERATURE: ${TEMPERATURE:-0.1}
+      DEMO_LOGIN_ENABLED: ${DEMO_LOGIN_ENABLED:-true}
+      OTEL_CONSOLE: ${OTEL_CONSOLE:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: [python, services/worker/main.py]
+    environment: *api-env
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import os; os.kill(1,0)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      API_URL: http://api:8000
+    ports: ['3101:3101']
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3101/api/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+volumes:
+  postgres:

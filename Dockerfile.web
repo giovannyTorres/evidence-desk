@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.7
+FROM node:24.22.1-bookworm-slim AS build
+WORKDIR /app
+COPY apps/web/ ./
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN --mount=type=secret,id=proxy_ca,target=/run/proxy-ca.pem \
+    if [ -f /run/proxy-ca.pem ]; then NODE_EXTRA_CA_CERTS=/run/proxy-ca.pem npm ci; else npm ci; fi && npm run build && npm cache clean --force
+FROM node:24.22.1-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3101 HOSTNAME=0.0.0.0
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+USER node
+EXPOSE 3101
+CMD ["node", "server.js"]

@@ -1,0 +1,14 @@
+# Managed-workspace CA trust. Optional override; no credential values are baked into images.
+services:
+  api:
+    build:
+      secrets: [proxy_ca]
+  worker:
+    build:
+      secrets: [proxy_ca]
+  web:
+    build:
+      secrets: [proxy_ca]
+secrets:
+  proxy_ca:
+    file: /etc/ssl/certs/ca-certificates.crt

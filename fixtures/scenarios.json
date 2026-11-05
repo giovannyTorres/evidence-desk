@@ -1,0 +1,49 @@
+[
+  {
+    "id": "travel-booking",
+    "question": "How early should I book domestic travel?",
+    "document": "Aurora Travel Handbook",
+    "location": "Booking",
+    "answer": "Book at least 10 calendar days before departure and obtain manager approval before booking.",
+    "evidence_hash": "6354d75dadbeec0a52d3700dd52486faeddb940d717a69770411cd34f3b6ef4f"
+  },
+  {
+    "id": "travel-meals",
+    "question": "What is the daily domestic meal allowance?",
+    "document": "Aurora Travel Handbook",
+    "location": "Meals",
+    "answer": "The daily domestic meal allowance is 650 MXN including taxes. An itemized receipt is required; alcohol is excluded.",
+    "evidence_hash": "6354d75dadbeec0a52d3700dd52486faeddb940d717a69770411cd34f3b6ef4f"
+  },
+  {
+    "id": "purchases-quotes",
+    "question": "When are three quotes required?",
+    "document": "Aurora Purchasing Guide",
+    "location": "Quotes",
+    "answer": "Purchases above 12000 MXN require three written quotes and budget owner approval.",
+    "evidence_hash": "0aaec7dbf3cb7b8fcc5b4191a3819e8770f5669d577372278003cdfe390ea73d"
+  },
+  {
+    "id": "reimbursement-deadline",
+    "question": "When must I submit a reimbursement?",
+    "document": "Aurora Reimbursement Manual",
+    "location": "Submission",
+    "answer": "Submit within 30 calendar days after the expense, with the receipt, date, purpose, amount and currency.",
+    "evidence_hash": "9fd71f4ed169b5fc2a997cd976f34a513c68ee185c1a96ecbd6e2f920c3e335b"
+  },
+  {
+    "id": "security-device",
+    "question": "What should I do after losing a device?",
+    "document": "Aurora Security Notes",
+    "location": "Incidents",
+    "answer": "Report the lost device immediately to the service desk with the time and device identifier. Do not include secrets.",
+    "evidence_hash": "235389f2894288d97063d31002529d7e009b4012f721c3c01125ee0681c58f9f"
+  },
+  {
+    "id": "no-evidence",
+    "question": "What is the guaranteed reimbursement payment date?",
+    "document": null,
+    "location": null,
+    "answer": null
+  }
+]

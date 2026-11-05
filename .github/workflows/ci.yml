@@ -1,0 +1,27 @@
+name: quality
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg17
+        env:
+          POSTGRES_USER: evidence
+          POSTGRES_PASSWORD: evidence
+          POSTGRES_DB: evidence
+        ports: ['5541:5432']
+        options: --health-cmd 'pg_isready -U evidence' --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {version: '0.13.4'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.22.1', cache: npm, cache-dependency-path: apps/web/package-lock.json}
+      - run: make install check types test build
+      - run: |
+          PYTHONPATH=services/api uv run uvicorn evidence.main:app --port 8101 > /tmp/api.log 2>&1 &
+          PYTHONPATH=services/api uv run python services/worker/main.py > /tmp/worker.log 2>&1 &
+          cd apps/web
+          npx playwright install --with-deps chromium
+          npm run test:e2e

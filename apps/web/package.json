@@ -1,0 +1,40 @@
+{
+  "name": "evidence-desk-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0 --port 3101",
+    "build": "next build",
+    "start": "node scripts/start.mjs",
+    "lint": "eslint src tests e2e",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.6",
+    "@types/react-dom": "19.2.3",
+    "eslint": "10.14.0",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0",
+    "@eslint/js": "10.0.1",
+    "typescript-eslint": "8.72.1",
+    "globals": "17.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "@next/eslint-plugin-next": "16.4.5"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "overrides": {
+    "minimatch": "11.0.4"
+  }
+}

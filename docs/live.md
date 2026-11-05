@@ -1,0 +1,17 @@
+# Activate LIVE explicitly
+
+No external call has been verified in this workspace. Ordinary tests use simulated SDK HTTP transports. The following opt-in steps can incur provider costs and were not executed.
+
+1. Copy `.env.example` to `.env` locally, keep it out of Git and restrict permissions (`chmod 600 .env`). Set `MODE=LIVE`, `PROVIDER=openai`, `MODEL=gpt-4.1-mini` and a valid `OPENAI_API_KEY`. OpenAI embeddings are required for either generation provider.
+2. For Gemini, set `PROVIDER=gemini`, `MODEL=gemini-2.5-flash`, and `GEMINI_API_KEY`, retaining the OpenAI key for embeddings. Providers are not interchangeable: Gemini uses its own JSON schema/config API; OpenAI uses strict chat JSON schema. Select a model supporting the configured structured response, temperature and streaming capabilities. Unsupported model/parameter combinations fail visibly; no automatic provider or DEMO fallback exists.
+3. Configure `PUBLIC_ORIGIN` to the exact browser origin; use `COOKIE_SECURE=true` under HTTPS. Start/recreate API and worker with `docker compose up --build -d --wait`. `/api/config` lists missing configuration without exposing values.
+4. Create a LIVE user, using an email distinct from the public DEMO identities: `docker compose exec api python -m evidence.provision --email reviewer@portfolio.example --org aurora --name Reviewer`. Enter the password at the protected prompt. DEMO accounts/cookies cannot access LIVE.
+5. Sign in, upload original synthetic documents and wait for ready. The worker extracts text and calls OpenAI embeddings. Every index records provider, model and dimensions. Change embedding settings only with reindexing: `POST /api/documents/{id}/retry` rebuilds that immutable current version while keeping stable excerpt IDs. Configuration mismatches block vector queries, even if other indexes would match.
+6. Ask a free-form question. Authentication and tenant filtering occur before retrieval. Invalid model references are rejected; unsupported questions abstain. Provider errors remain LIVE errors. Timeouts are bounded; OpenAI has two retries, Gemini three total attempts; concurrency is limited per API process. Each request has an overall timeout. UI cancellation interrupts the active task.
+7. To verify actual providers after intentionally authorizing costs, run locally: `RUN_LIVE=1 PYTHONPATH=services/api uv run pytest -m live tests/test_live.py -q`. Run once with each provider configuration. The smoke test validates a cited structured answer and embedding dimensions, not general model quality.
+
+Secrets stay in backend environment variables; never put them in `NEXT_PUBLIC_*`. `MODEL_TIMEOUT`, `MODEL_CONCURRENCY`, `MAX_OUTPUT_TOKENS`, `TEMPERATURE`, `EMBEDDING_MODEL` and `EMBEDDING_DIMENSIONS` are backend settings. DEMO has no token counts. LIVE token telemetry is currently not persisted because generation uses provider streaming deltas; it is not estimated or fabricated.
+
+## Evaluation
+
+`fixtures/evaluation.json` contains at least 40 prompts and expected document/section/abstention/organization. The LIVE evaluation runner writes measured evidence/abstention checks only; it does not claim factual correctness or model immunity. `RUN_LIVE=1 PYTHONPATH=services/api uv run python -m evidence.evaluate --output live-evaluation.json` requires an indexed LIVE corpus and paid API credentials. Keep development and final splits separate when tuning. No model metrics exist until this command is executed successfully.
