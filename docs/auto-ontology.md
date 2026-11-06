@@ -137,6 +137,11 @@ After Release Lab saves a run, `python tools/measure_retrieval.py <run-directory
 computes recall@6, original-chunk evidence hits, source precision and scope
 violations. Incomplete arms have null recall, rather than a fabricated zero or a
 baseline result relabeled as NVIDIA.
+The [2026-11-06 local results](semantic-benchmark/RESULTS.md) record a completed
+real three-arm run, its frozen identities, and the observed absence of a recall gain.
+The separate [local generation experiment](semantic-benchmark/GENERATION.md)
+adds a local model and the product's strict answer/evidence validation, while
+preserving the same cases and the earlier retrieval-only report.
 
 ## Validation and limits
 
