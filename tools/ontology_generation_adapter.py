@@ -175,7 +175,8 @@ def main():
     except Exception:
         result = {'status': 'error', 'execution': 'live', 'output': None, 'trace': [],
                   'detail': 'Invalid generation adapter request'}
-    print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+    # The caller protocol is UTF-8 even when Windows' console code page is CP1252.
+    sys.stdout.buffer.write((json.dumps(result, ensure_ascii=False, allow_nan=False) + '\n').encode('utf-8'))
 
 
 if __name__ == '__main__':

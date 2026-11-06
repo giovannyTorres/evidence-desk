@@ -1,6 +1,7 @@
 """Local model wire simulations are transport_mock; no inference occurs here."""
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import uuid
@@ -239,3 +240,21 @@ def test_rehydration_uses_real_postgres_org_mode_and_current_version(adapter):
     finally:
         with Session.begin() as db:
             db.execute(delete(Document).where(Document.id.in_(documents)))
+
+
+def test_cli_protocol_emits_utf8_independent_of_windows_console_encoding(adapter, monkeypatch):
+    source = io.TextIOWrapper(io.BytesIO(json.dumps(request_value()).encode('utf-8')), encoding='cp1252')
+    target = io.TextIOWrapper(io.BytesIO(), encoding='cp1252')
+    value = {'status': 'completed', 'execution': 'transport_mock',
+             'output': {'answer': 'El límite diario es de 650 MXN.', 'citations': ['original-chunk']}}
+
+    def no_inference(coroutine):
+        coroutine.close()
+        return value
+
+    monkeypatch.setattr(adapter.sys, 'stdin', source)
+    monkeypatch.setattr(adapter.sys, 'stdout', target)
+    monkeypatch.setattr(adapter.asyncio, 'run', no_inference)
+    adapter.main()
+    target.flush()
+    assert json.loads(target.buffer.getvalue().decode('utf-8')) == value
