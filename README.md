@@ -102,3 +102,12 @@ Forty-four synthetic evaluation prompts include expected evidence, abstention an
 3. **0:50–1:20:** Upload a small Markdown file; observe queued → processing → ready. Replace it as a new version and inspect history through the API.
 4. **1:20–1:40:** Select the question without evidence to show abstention. Explain free-form LIVE activation and the missing-key status.
 5. **1:40–2:00:** Sign in to Meridian; show its different library. Point reviewers to the direct-access/retrieval isolation tests and contract tests.
+
+## Optional Auto Ontology integration
+
+Reviewed semantic context can enrich LIVE retrieval through a pinned local glossary
+or the real NVIDIA public GET API. It is off by default; organization, current
+version and original chunk citations remain enforced by Evidence Desk. The local
+three-arm adapter uses real Ollama embeddings and PostgreSQL retrieval, with
+extractive output and separate goldens. See [setup, contracts and measurement
+limits](docs/auto-ontology.md).

@@ -1,0 +1,7 @@
+[
+  {"id":"aurora-meals","org":"aurora","name":"Meal allowance","description":"Domestic daily limit, receipt requirements and exclusions for meals.","synonyms":["per diem","meal","meals","viáticos","alimentos"],"document":"Aurora Travel Handbook","location":"Meals"},
+  {"id":"aurora-booking","org":"aurora","name":"Travel booking","description":"Advance travel booking, approval and personal upgrade reimbursement rules.","synonyms":["booking","seat upgrade","upgrades","departure"],"document":"Aurora Travel Handbook","location":"Booking"},
+  {"id":"aurora-quotes","org":"aurora","name":"Purchase quotes","description":"Written quotation threshold, budget approval and conflict disclosure.","synonyms":["quotes","quotations","vendor selection"],"document":"Aurora Purchasing Guide","location":"Quotes"},
+  {"id":"aurora-claims","org":"aurora","name":"Reimbursement submission","description":"Time window and required evidence to submit an expense reimbursement claim.","synonyms":["expense claim","reimbursement request","file an expense"],"document":"Aurora Reimbursement Manual","location":"Submission"},
+  {"id":"meridian-meals","org":"meridian","name":"Meal allowance","description":"Meridian domestic meal limit; Aurora policy does not apply.","synonyms":["per diem","meal","meals","viáticos"],"document":"Meridian Travel Handbook","location":"Meals"}
+]

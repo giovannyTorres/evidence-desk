@@ -101,7 +101,8 @@ def health():
 def config():
     c = settings()
     return {'mode': c.mode, 'ready': not c.missing(), 'missing': c.missing(), 'provider': c.provider,
-            'model': c.model, 'search': 'fixture evidence + lexical search' if c.mode == 'DEMO' else 'hybrid API embeddings + PostgreSQL full text'}
+            'model': c.model, 'ontology': c.ontology_mode if c.mode == 'LIVE' else 'off',
+            'search': 'fixture evidence + lexical search' if c.mode == 'DEMO' else 'hybrid API embeddings + PostgreSQL full text'}
 
 
 class Login(BaseModel):
@@ -349,6 +350,7 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user=D
 
     async def events():
         task = None
+        ontology_audit: dict = {'strategy': 'off', 'status': 'disabled'}
         try:
             with tracer.start_as_current_span('rag.answer'):
                 if config.mode == 'DEMO':
@@ -356,7 +358,7 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user=D
                 else:
                     async def generate_answer():
                         gateway = request.app.state.gateway
-                        sources = await retrieve(question, user.org, gateway)
+                        sources = await retrieve(question, user.org, gateway, ontology_audit)
                         if not sources:
                             return 'I could not find enough evidence in the authorized documents to answer this question.', []
                         result = await gateway.generate(question, json.dumps(sources))
@@ -384,13 +386,15 @@ async def chat(conversation_id: str, body: ChatRequest, request: Request, user=D
                     ids = [s['chunk_id'] for s in citations]
                     list(db.scalars(select(Document).where(Document.id.in_([s['document_id'] for s in citations])).with_for_update(read=True)))
                     authorized = set(db.scalars(select(Chunk.id).join(Version).join(Document).where(
-                        Chunk.id.in_(ids), Document.org == user.org, Document.mode == config.mode)))
+                        Chunk.id.in_(ids), Document.org == user.org, Document.mode == config.mode,
+                        Version.number == Document.current_version, Version.status == 'ready')))
                     if set(ids) != authorized:
                         raise ValueError('Evidence changed while answering. Please retry.')
                     m = Message(conversation_id=conversation_id, role='assistant', content=answer_text,
                                 citations=citations, metadata_json={'mode': config.mode, 'fixture': config.mode == 'DEMO',
                                 'provider': config.provider if config.mode == 'LIVE' else None,
-                                'model': config.model if config.mode == 'LIVE' else None})
+                                'model': config.model if config.mode == 'LIVE' else None,
+                                'ontology': ontology_audit})
                     db.add(m)
                     db.flush()
                     message_id = m.id

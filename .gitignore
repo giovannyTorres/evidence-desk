@@ -13,3 +13,4 @@ playwright-report/
 *.pyc
 *.log
 *.tsbuildinfo
+docs/semantic-benchmark/local/
