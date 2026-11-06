@@ -27,6 +27,12 @@ export interface Citation {
   location: string;
   excerpt: string;
   title: string;
+  semantic_context?: {
+    source: "glossary" | "auto_ontology";
+    snapshot_id: string;
+    snapshot_sha256: string;
+    terms: { id: string; name: string; description: string }[];
+  };
 }
 export interface Scenario {
   id: string;

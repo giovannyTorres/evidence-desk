@@ -393,7 +393,8 @@ export default function Home() {
     setSourceLoading(true);
     setError("");
     try {
-      setSource(await api<Citation>(`/sources/${citation.chunk_id}`));
+      const original = await api<Citation>(`/sources/${citation.chunk_id}`);
+      setSource({ ...original, semantic_context: citation.semantic_context });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -1184,6 +1185,13 @@ export default function Home() {
                 </a>
               </div>
               <div className="source-rule" />
+              {source.semantic_context && (
+                <div className="source-excerpt">
+                  <div className="eyebrow">REVIEWED CONCEPT MATCH</div>
+                  <p>{source.semantic_context.terms.map((term) => term.name).join(", ")}</p>
+                  <small>Review {source.semantic_context.snapshot_id}</small>
+                </div>
+              )}
               <div className="source-excerpt">
                 <div className="eyebrow">ORIGINAL EXCERPT</div>
                 <blockquote>{source.excerpt}</blockquote>
