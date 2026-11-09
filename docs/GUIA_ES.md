@@ -1,5 +1,20 @@
 # Guía de Evidence Desk
 
+## Resumen del producto
+
+- **Qué es:** un espacio para consultar políticas y procedimientos donde cada respuesta enlaza al documento, versión y fragmento exactos de los que proviene.
+- **Para quién:** un analista que debe responder preguntas sobre documentos extensos y justificar su respuesta ante otra persona.
+- **Problema que resuelve:** revisar manuales a mano es lento y una respuesta sin fuente es difícil de comprobar. La respuesta y su evidencia viajan juntas, el sistema se abstiene si no hay evidencia y cada organización solo ve sus documentos.
+- **Qué es simulado:** en DEMO el **texto de la respuesta es un ejemplo predefinido**, etiquetado *Example response*. La cita no es simulada: es una consulta real a PostgreSQL limitada a la organización activa y al hash exacto del documento. Las preguntas libres requieren LIVE.
+- **Qué requiere un proveedor real:** LIVE con OpenAI o Gemini y embeddings de OpenAI (claves de API). No se ha verificado ninguna llamada real.
+- **Límites:** datos sintéticos, sin SSO, sin OCR, sin métricas de calidad de modelo. La abstención en LIVE depende del modelo: la PR #1 (borrador) observó un caso en que el modelo respondió con evidencia propia de Meridian en lugar de abstenerse, **sin recuperar ni citar fragmentos de Aurora**; no es una filtración y la corrección propuesta no está verificada.
+
+**Recorrido de dos minutos:** (1) *Open workspace* con la cuenta Aurora; (2) *Document library* para ver los cuatro manuales; (3) pregunta *What is the daily domestic meal allowance?* y abrir la cita (Aurora Travel Handbook · Version 1 · Meals); (4) nueva conversación, *Explore 3 more example questions* → *What is the approved annual procurement budget?* para ver la falta de evidencia; (5) escribir una pregunta libre para ver el aviso de LIVE; (6) cerrar sesión, elegir *Meridian Studio*, preguntar *What is Meridian Studio's daily meal limit?* (420 MXN, fuente propia) y luego la pregunta de Aurora, que se rechaza.
+
+**Windows 11:** el repositorio fija los manuales DEMO con finales de línea LF (`.gitattributes`) y la carga inicial normaliza CRLF, porque las respuestas DEMO dependen del hash exacto del manual. Un clon normal funciona con cualquier `core.autocrlf`.
+
+## Instalación y uso
+
 Requisitos para DEMO: Git, Docker con Compose v2 y el puerto 3101 disponible. Clone con `git clone https://github.com/giovannyTorres/evidence-desk.git`, entre con `cd evidence-desk` y ejecute `docker compose up --build -d --wait` (o `make demo` si tiene Make). Abra http://localhost:3101. No necesita API keys, archivo `.env`, Python ni Node instalados en el equipo. Usuario Aurora: `analyst@aurora.example`; contraseña pública de demostración: `demo-evidence`. Meridian usa `analyst@meridian.example`. El indicador DEMO permanece visible.
 
 Seleccione una pregunta sugerida, espere la respuesta y abra su cita para verificar documento, versión, sección y fragmento original. En Biblioteca puede cargar PDF con texto, TXT o Markdown, actualizar una versión, reintentar su procesamiento y eliminar un documento con confirmación. La extracción, persistencia, permisos y worker funcionan sin API keys. La búsqueda textual se identifica como tal. Una pregunta libre necesita LIVE; los ejemplos no pretenden interpretar texto arbitrario.

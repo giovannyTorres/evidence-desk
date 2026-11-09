@@ -1,2 +1,4 @@
 *.pdf binary
 *.png binary
+# DEMO answers are bound to SHA-256 hashes of these exact LF bytes; keep them LF on Windows checkouts.
+fixtures/manuals/** text eol=lf

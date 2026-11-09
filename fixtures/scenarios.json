@@ -40,8 +40,16 @@
     "evidence_hash": "235389f2894288d97063d31002529d7e009b4012f721c3c01125ee0681c58f9f"
   },
   {
+    "id": "meridian-meals",
+    "question": "What is Meridian Studio's daily meal limit?",
+    "document": "Meridian Travel Handbook",
+    "location": "Meals",
+    "answer": "Meridian Studio's synthetic meal limit is 420 MXN per day. The Aurora travel policy does not apply to Meridian.",
+    "evidence_hash": "1281365d93e2be64a536a12e94854e60b9336be0828a21632db1c8f0d52b3585"
+  },
+  {
     "id": "no-evidence",
-    "question": "What is the guaranteed reimbursement payment date?",
+    "question": "What is the approved annual procurement budget?",
     "document": null,
     "location": null,
     "answer": null

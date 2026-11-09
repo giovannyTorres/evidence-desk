@@ -808,7 +808,10 @@ export default function Home() {
                     <strong>
                       {documents.length.toString().padStart(2, "0")}
                     </strong>
-                    <span>documents in your workspace</span>
+                    <span>
+                      {documents.length === 1 ? "document" : "documents"} in
+                      your workspace
+                    </span>
                   </div>
                   <p>
                     <Icon name="shield" size={17} />
@@ -918,12 +921,12 @@ export default function Home() {
                 <div className="chat-toolbar">
                   <span>
                     <span className="online-dot" />
-                    {
-                      documents.filter((d) =>
+                    {(() => {
+                      const ready = documents.filter((d) =>
                         ["ready", "indexed", "completed"].includes(d.status),
-                      ).length
-                    }{" "}
-                    documents ready to explore
+                      ).length;
+                      return `${ready} ${ready === 1 ? "document" : "documents"} ready to explore`;
+                    })()}
                   </span>
                   <button
                     className="subtle-button"

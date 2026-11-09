@@ -8,6 +8,11 @@ from .domain import FIXTURES
 from .migrate import migrate
 
 
+def demo_fixture_bytes(file) -> bytes:
+    """DEMO answers are bound to SHA-256 of LF fixture bytes; Windows checkouts may convert them to CRLF."""
+    return file.read_bytes().replace(b'\r\n', b'\n')
+
+
 def seed():
     migrate()
     with Session.begin() as db:
@@ -19,13 +24,13 @@ def seed():
             if settings().mode != 'DEMO':
                 continue
             for file in sorted((FIXTURES / 'manuals' / org).glob('*.md')):
-                title = file.read_text().splitlines()[0].lstrip('# ')
+                data = demo_fixture_bytes(file)
+                title = data.decode('utf-8').splitlines()[0].lstrip('# ')
                 if db.scalar(select(Document).where(Document.org == org, Document.mode == 'DEMO', Document.title == title)):
                     continue
                 doc = Document(org=org, mode='DEMO', title=title)
                 db.add(doc)
                 db.flush()
-                data = file.read_bytes()
                 version = Version(document_id=doc.id, number=1, filename=file.name,
                     content_hash=hashlib.sha256(data).hexdigest(), content=base64.b64encode(data).decode())
                 db.add(version)
