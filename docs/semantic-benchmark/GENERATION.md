@@ -55,3 +55,30 @@ both native counts are present, are the model's prompt plus completion tokens
 only; embedding usage and cost are not inferred. Command wall latency remains
 distinct from model-only runtime. No generated-answer performance result is
 claimed by the transport tests or the retrieval-only report.
+
+
+## Opt-in abstention regression
+
+The production system instruction asks the model to distinguish related evidence
+from evidence for the specific requested organization and policy. This is a
+prompt change, not a semantic entailment or authorization guarantee. A mocked
+test covers the response contract; it does not establish model behavior.
+
+With the separately prepared benchmark database, local Ollama embedding and
+generation models, and real scoped NVIDIA gateways configured as above, set
+`EVIDENCE_REGRESSION_OPTIONS` to an adapter-options JSON containing the
+scoped snapshots appropriate to each arm. The baseline needs no snapshots;
+glossary and Auto Ontology use different snapshot sources, so run each arm
+with its corresponding options file via pytest's `-k` filter. For example:
+
+```text
+EVIDENCE_REGRESSION_OPTIONS=<baseline-options.json> uv run pytest -q -m live tests/test_generation_live_regression.py -k baseline
+EVIDENCE_REGRESSION_OPTIONS=<glossary-options.json> uv run pytest -q -m live tests/test_generation_live_regression.py -k glossary
+EVIDENCE_REGRESSION_OPTIONS=<auto-options.json> uv run pytest -q -m live tests/test_generation_live_regression.py -k auto_ontology
+```
+
+The tests check the cross-organization and missing-phone abstentions and a
+positive Meridian answer, using real retrieval and generation. Missing gateways,
+invalid snapshots or unexpected model output fail the run; they are not
+reported as passes. This test checks authorized retrieved IDs using the domain
+filter, but does not exercise HTTP login or establish general factual grounding.
