@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,6 +24,12 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 5 * 1024 * 1024
     otel_enabled: bool = True
     otel_console: bool = False
+    ontology_mode: Literal['off', 'glossary', 'auto_ontology'] = 'off'
+    ontology_snapshots: dict[str, dict[str, str]] = Field(default_factory=dict)
+    auto_ontology_url: str = ''
+    auto_ontology_api_token: str = Field(default='', repr=False)
+    auto_ontology_connections: dict[str, dict[str, str]] = Field(default_factory=dict)
+    ontology_timeout: float = Field(default=5, gt=0, le=30)
 
     def missing(self) -> list[str]:
         if self.mode not in {'DEMO', 'LIVE'}:

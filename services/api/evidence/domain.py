@@ -8,14 +8,20 @@ import threading
 import json
 import uuid
 from pathlib import Path
+from typing import Protocol
 from opentelemetry import trace
 from sqlalchemy import delete, func, or_, select
-from .config import settings
+from .config import Settings, settings
 from .db import Chunk, Document, Job, Session, Version, now
 from .providers import Answer, ModelGateway
+from .ontology import Binding, SemanticContext, resolve_context
 
 FIXTURES = Path(__file__).resolve().parents[3] / 'fixtures'
 PARSER_SLOTS = threading.BoundedSemaphore(2)
+
+
+class EmbeddingGateway(Protocol):
+    async def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
 def validate_upload(filename: str, content: bytes) -> None:
@@ -134,13 +140,19 @@ def validate_answer(answer: Answer, sources: list[dict]) -> tuple[str, list[dict
 
 
 @trace.get_tracer("evidence-desk").start_as_current_span("rag.retrieve")
-async def retrieve(question: str, org: str, gateway: ModelGateway) -> list[dict]:
-    config = settings()
+async def retrieve(question: str, org: str, gateway: EmbeddingGateway, ontology_audit: dict | None = None,
+                   *, strategy: str | None = None, config: Settings | None = None,
+                   semantic_context: SemanticContext | None = None) -> list[dict]:
+    config = config or settings()
+    context = semantic_context or await resolve_context(question, org, 'LIVE', config, strategy)
     vector = (await gateway.embed([question]))[0]
+    # Benchmark gateways identify their real index. Production retains OpenAI defaults.
+    embedding_provider = getattr(gateway, 'embedding_provider', 'openai')
+    embedding_model = getattr(gateway, 'embedding_model', config.embedding_model)
     with Session() as db:
         base = source_rows(db, org, 'LIVE')
-        incompatible = db.execute(base.where(or_(Version.provider != 'openai',
-            Version.model != config.embedding_model, Version.dimensions != len(vector),
+        incompatible = db.execute(base.where(or_(Version.provider != embedding_provider,
+            Version.model != embedding_model, Version.dimensions != len(vector),
             Version.provider.is_(None), Version.model.is_(None), Version.dimensions.is_(None)))).first()
         if incompatible:
             raise ValueError('An index is incompatible with the configured embeddings; reindex before querying')
@@ -150,13 +162,45 @@ async def retrieve(question: str, org: str, gateway: ModelGateway) -> list[dict]
             func.to_tsvector('english', Chunk.text), func.plainto_tsquery('english', question)).desc()).limit(12)).all()
         semantic = db.execute(base.where(Chunk.embedding.is_not(None)).order_by(
             Chunk.embedding.cosine_distance(vector)).limit(12)).all()
+        # A semantic relation never widens the org/mode/current/ready source query.
+        by_chunk: dict[str, list[Binding]] = {}
+        for binding in context.bindings:
+            by_chunk.setdefault(binding.chunk_id, []).append(binding)
+        linked = db.execute(base.where(Chunk.id.in_(by_chunk))).all() if by_chunk else []
+        approved = []
+        provenance = {}
+        valid_bindings = 0
+        terms = {term.id: term for term in context.terms}
+        for row in linked:
+            chunk, version, document = row
+            valid = [binding for binding in by_chunk[chunk.id] if
+                     binding.document_id == document.id and binding.document_version == version.number
+                     and binding.content_sha256 == version.content_hash]
+            if valid:
+                valid_bindings += len(valid)
+                approved.append(row)
+                provenance[chunk.id] = {'source': context.audit['strategy'],
+                    'snapshot_id': context.audit.get('snapshot_id'),
+                    'snapshot_sha256': context.audit.get('snapshot_sha256'),
+                    'terms': [{'id': binding.term_id, 'name': terms[binding.term_id].name,
+                               'description': terms[binding.term_id].description} for binding in valid]}
+        context.audit['authorized_bindings'] = len(approved)
+        context.audit['rejected_bindings'] = len(context.bindings) - valid_bindings
         ranks: dict[str, float] = {}
         rows = {}
-        for candidates in (lexical, semantic):
+        for candidates in (lexical, semantic, approved):
             for rank, row in enumerate(candidates):
                 ranks[row[0].id] = ranks.get(row[0].id, 0) + 1 / (60 + rank)
                 rows[row[0].id] = row
-        return [citation(*rows[cid]) for cid in sorted(ranks, key=lambda c: ranks[c], reverse=True)[:6]]
+        results = []
+        for cid in sorted(ranks, key=lambda c: ranks[c], reverse=True)[:6]:
+            item = citation(*rows[cid])
+            if cid in provenance:
+                item['semantic_context'] = provenance[cid]
+            results.append(item)
+        if ontology_audit is not None:
+            ontology_audit.update(context.audit)
+        return results
 
 
 def scenarios() -> list[dict]:
