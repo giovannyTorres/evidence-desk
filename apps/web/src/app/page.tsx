@@ -479,7 +479,6 @@ export default function Home() {
         <div className="login-story">
           <Brand />
           <div className="login-main">
-            <div className="eyebrow">A CLEARER WAY TO KNOW</div>
             <h1>
               Good answers
               <br />
@@ -503,8 +502,7 @@ export default function Home() {
             </div>
           </div>
           <div className="login-bottom">
-            <span>Built for questions that matter.</span>
-            <span>01 / EVIDENCE DESK</span>
+            <span>Original synthetic manuals for two fictional organizations.</span>
           </div>
         </div>
         <div className="login-panel">
@@ -516,7 +514,6 @@ export default function Home() {
               : config?.mode === "LIVE" ? " · API workspace" : " · Reconnect to verify mode"}
           </div>
           <div className="login-form-wrap">
-            <div className="eyebrow">YOUR RESEARCH WORKSPACE</div>
             <h2>Welcome to your desk.</h2>
             <p className="muted">
               Sign in to explore documents and follow the evidence.
@@ -602,25 +599,21 @@ export default function Home() {
             <strong>{organization}</strong>
             <span>Research workspace</span>
           </div>
-          <span className="org-indicator" />
         </div>
-        <div className="nav-label">WORKSPACE</div>
+        <div className="nav-label">Workspace</div>
         <nav aria-label="Main navigation">
           <button
             className={`nav-item ${tab === "workspace" ? "active" : ""}`}
             onClick={() => setTab("workspace")}
           >
-            <Icon name="spark" />
+            <Icon name="search" size={18} />
             Ask your documents
-            <span className="nav-arrow">
-              <Icon name="arrow" size={12} />
-            </span>
           </button>
           <button
             className={`nav-item ${tab === "library" ? "active" : ""}`}
             onClick={() => setTab("library")}
           >
-            <Icon name="book" />
+            <Icon name="book" size={18} />
             Document library<span className="count">{documents.length}</span>
           </button>
         </nav>
@@ -645,7 +638,7 @@ export default function Home() {
           </select>
         </label>
         <div className="history-heading">
-          <span className="nav-label">CONVERSATIONS</span>
+          <span className="nav-label">Conversations</span>
           <button
             className="icon-button"
             aria-label="New conversation"
@@ -657,10 +650,7 @@ export default function Home() {
         </div>
         <div className="history-list">
           {conversations.length === 0 ? (
-            <p className="sidebar-empty">
-              A little curiosity starts
-              <br />a new conversation.
-            </p>
+            <p className="sidebar-empty">No conversations yet.</p>
           ) : (
             conversations.map((chat) => (
               <button
@@ -779,7 +769,6 @@ export default function Home() {
               <section className="library">
                 <div className="section-top">
                   <div>
-                    <div className="eyebrow">YOUR KNOWLEDGE, ORGANIZED</div>
                     <h1>
                       Document library<span>.</span>
                     </h1>
@@ -806,7 +795,7 @@ export default function Home() {
                 <div className="library-summary">
                   <div>
                     <strong>
-                      {documents.length.toString().padStart(2, "0")}
+                      {documents.length}
                     </strong>
                     <span>
                       {documents.length === 1 ? "document" : "documents"} in
@@ -940,41 +929,32 @@ export default function Home() {
                 <div className="chat-content" aria-busy={conversationBusy}>
                   {messages.length === 0 ? (
                     <div className="welcome">
-                      <div className="welcome-icon">
-                        <Icon name="spark" size={30} />
-                      </div>
-                      <div className="eyebrow">FROM QUESTION TO CONFIDENCE</div>
-                      <h1>
-                        Find the answer.
-                        <br />
-                        <span>Keep the evidence.</span>
-                      </h1>
-                      <p>
-                        Explore your manuals with answers you can trace
-                        <br className="desktop-break" /> back to the exact
-                        source.
+                      <h1>Ask your documents</h1>
+                      <p className="welcome-lede">
+                        Every answer links to the exact passage, version and
+                        section it relies on. When the authorized documents do
+                        not cover a question, the desk says so.
                       </p>
                       <div className="suggestions-label">
-                        <span>START WITH A QUESTION</span>
                         <span>
                           {config?.mode === "DEMO"
-                            ? "CURATED DEMO"
-                            : "SUGGESTED"}
+                            ? "Example questions"
+                            : "Suggested questions"}
                         </span>
+                        {config?.mode === "DEMO" && (
+                          <span>Answers are labelled examples; sources are real</span>
+                        )}
                       </div>
                       <div className="suggestions">
-                        {scenarios.slice(0, 4).map((scenario, index) => (
+                        {scenarios.slice(0, 4).map((scenario) => (
                           <button
                             key={scenario.id}
                             className="suggestion"
                             onClick={() => void send(scenario)}
                             disabled={streaming || config?.ready === false}
                           >
-                            <span className="suggestion-number">
-                              0{index + 1}
-                            </span>
                             <span>{scenario.question}</span>
-                            <Icon name="arrow" size={17} />
+                            <Icon name="arrow" size={16} />
                           </button>
                         ))}
                       </div>
@@ -992,9 +972,8 @@ export default function Home() {
                                 onClick={() => void send(scenario)}
                                 disabled={streaming || config?.ready === false}
                               >
-                                <Icon name="chat" size={15} />
                                 <span>{scenario.question}</span>
-                                <Icon name="arrow" size={17} />
+                                <Icon name="arrow" size={16} />
                               </button>
                             ))}
                           </div>
@@ -1006,13 +985,6 @@ export default function Home() {
                           to get started.
                         </p>
                       )}
-                      <div className="welcome-foot">
-                        <Icon name="link" size={15} />
-                        <span>Linked citations</span>
-                        <span className="dot-separator">·</span>
-                        <Icon name="shield" size={15} />
-                        <span>Organization-scoped sources</span>
-                      </div>
                     </div>
                   ) : (
                     <div className="messages">
@@ -1021,13 +993,6 @@ export default function Home() {
                           className={`message ${message.role}`}
                           key={message.id}
                         >
-                          <div className="message-avatar">
-                            {message.role === "assistant" ? (
-                              <Icon name="spark" size={20} />
-                            ) : (
-                              "You"
-                            )}
-                          </div>
                           <div className="message-body">
                             <div className="message-heading">
                               <strong>
@@ -1063,8 +1028,7 @@ export default function Home() {
                               message.citations.length > 0 && (
                                 <div className="citation-list">
                                   <div className="citation-heading">
-                                    <Icon name="link" size={14} /> VERIFIED
-                                    SOURCE LINKS
+                                    Sources
                                   </div>
                                   {message.citations.map((citation, index) => (
                                     <button
@@ -1083,7 +1047,10 @@ export default function Home() {
                                           {citation.location}
                                         </span>
                                       </div>
-                                      <Icon name="arrow" size={16} />
+                                      <span className="citation-open">
+                                        Open passage
+                                        <Icon name="arrow" size={14} />
+                                      </span>
                                     </button>
                                   ))}
                                 </div>
@@ -1161,7 +1128,7 @@ export default function Home() {
           {source && (
             <aside className="source-panel" aria-label="Source evidence">
               <div className="source-top">
-                <span className="eyebrow">SOURCE EVIDENCE</span>
+                <span className="eyebrow">Source</span>
                 <button
                   className="icon-button"
                   aria-label="Close source"
@@ -1171,9 +1138,6 @@ export default function Home() {
                 </button>
               </div>
               <div className="source-document">
-                <div className="doc-icon">
-                  <Icon name="file" size={24} />
-                </div>
                 <h2>{source.title}</h2>
                 <span className="source-version">
                   Version {source.version} <span>·</span> {source.location}
@@ -1182,13 +1146,13 @@ export default function Home() {
                   className="source-download"
                   href={`/api/documents/${encodeURIComponent(source.document_id)}/file?version=${source.version}`}
                 >
-                  <Icon name="file" size={14} />
-                  Download this original version
+                  Download version {source.version}
+                  <Icon name="arrow" size={14} />
                 </a>
               </div>
               <div className="source-rule" />
               <div className="source-excerpt">
-                <div className="eyebrow">ORIGINAL EXCERPT</div>
+                <div className="eyebrow">Original passage</div>
                 <blockquote>{source.excerpt}</blockquote>
               </div>
               <div className="source-trust">
@@ -1202,7 +1166,7 @@ export default function Home() {
                 </p>
               </div>
               <div className="source-id">
-                Reference <code>{source.chunk_id.slice(0, 12)}</code>
+                Passage ID <code>{source.chunk_id.slice(0, 12)}</code>
               </div>
             </aside>
           )}
