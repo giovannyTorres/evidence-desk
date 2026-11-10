@@ -498,7 +498,8 @@ svg {
 .login-form input:focus,
 .search-box input:focus,
 .composer textarea:focus {
-  outline: none;
+  /* Transparent outline keeps a focus indicator in forced-colors (high contrast) mode. */
+  outline: 2px solid transparent;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-wash);
 }
@@ -534,6 +535,13 @@ svg {
   min-height: 100vh;
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  /* Continue the sidebar column and its rule below the sticky panel on long pages. */
+  background: linear-gradient(
+    to right,
+    var(--ground) calc(var(--sidebar) - 1px),
+    var(--rule) calc(var(--sidebar) - 1px) var(--sidebar),
+    transparent var(--sidebar)
+  );
 }
 .sidebar {
   position: sticky;
@@ -640,6 +648,7 @@ nav {
   min-height: 0;
   overflow-y: auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 2px;
 }
@@ -788,7 +797,9 @@ nav {
   flex-direction: column;
 }
 .workspace-body > .alert {
-  margin: var(--s3) var(--s5) 0;
+  width: calc(100% - 2 * var(--s5));
+  max-width: 980px;
+  margin: var(--s3) auto 0;
 }
 
 /* ---------- Conversation ---------- */
@@ -1035,6 +1046,7 @@ nav {
 }
 .composer:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 .composer textarea {
   display: block;
@@ -1394,6 +1406,7 @@ nav {
   }
   .app-shell {
     grid-template-columns: 1fr;
+    background: none;
   }
   .sidebar {
     position: static;
@@ -1451,7 +1464,11 @@ nav {
     padding-right: var(--s3);
   }
   .workspace-body > .alert {
-    margin: var(--s3) var(--s3) 0;
+    width: calc(100% - 2 * var(--s3));
+  }
+  .composer-wrap {
+    position: static;
+    background: none;
   }
   .welcome {
     margin-top: var(--s3);
