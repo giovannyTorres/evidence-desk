@@ -938,6 +938,9 @@ nav {
 .message.user .message-heading {
   color: var(--ink-3);
 }
+.message-content {
+  overflow-wrap: anywhere;
+}
 .message.user .message-content {
   font-family: var(--serif);
   font-size: 26px;
